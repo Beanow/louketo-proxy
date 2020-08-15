@@ -184,6 +184,8 @@ func (r *oauthProxy) createReverseProxy() error {
 		engine.Use(r.securityMiddleware)
 	}
 
+	engine.Use(r.flushIntervalMiddleware(r.config.FlushInterval))
+
 	if len(r.config.CorsOrigins) > 0 {
 		c := cors.New(cors.Options{
 			AllowedOrigins:   r.config.CorsOrigins,

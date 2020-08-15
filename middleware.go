@@ -27,6 +27,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/louketo/louketo-proxy/caddy"
+
 	uuid "github.com/gofrs/uuid"
 
 	"github.com/PuerkitoBio/purell"
@@ -61,6 +63,24 @@ func (w *gzipResponseWriter) WriteHeader(status int) {
 
 func (w *gzipResponseWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
+}
+
+// In order to send chunked responses, we must implement http.Flusher
+var _ http.Flusher = (*gzipResponseWriter)(nil)
+
+func (w *gzipResponseWriter) Flush() {
+	gz := w.Writer.(*gzip.Writer)
+	f, ok := w.ResponseWriter.(http.Flusher)
+
+	if !ok {
+		panic(fmt.Sprintf("Oh dear, we flushed a ResponseWriter that can't flush: %T", w.ResponseWriter))
+	}
+
+	err := gz.Flush()
+	if err != nil {
+		panic(err)
+	}
+	f.Flush()
 }
 
 // gzipMiddleware is responsible for compressing a response
@@ -538,6 +558,29 @@ func (r *oauthProxy) securityMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, req)
 	})
+}
+
+// flushIntervalMiddleware adds a Caddy-style control over `Transfer-Encoding: chunked` behaviour
+func (r *oauthProxy) flushIntervalMiddleware(flushInterval time.Duration) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		// Setting flushInterval to 0, means to keep unchanged flushing behaviour, avoid the nested handler.
+		if flushInterval == 0 {
+			return next
+		}
+
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			// We require the destination to implement writer and flusher.
+			if _, ok := w.(http.Flusher); ok {
+				w = caddy.WrapFlushResponseWriter(w, flushInterval)
+			} else {
+				r.log.Error("Unable to respect flush interval, provided ResponseWriter does not implement Flusher",
+					zap.String("type", fmt.Sprintf("%T", w)),
+				)
+			}
+
+			next.ServeHTTP(w, req)
+		})
+	}
 }
 
 // proxyDenyMiddleware just block everything

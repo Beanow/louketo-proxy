@@ -90,3 +90,6 @@ cors-methods: []
 cors-credentials: true|false
 # the max age (Access-Control-Max-Age)
 cors-max-age: 1h
+
+# duration interval to flush reverse proxy body chunks
+flush-interval: 0s

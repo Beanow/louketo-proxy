@@ -364,6 +364,9 @@ type Config struct {
 
 	// DisableAllLogging indicates no logging at all
 	DisableAllLogging bool `json:"disable-all-logging" yaml:"disable-all-logging" usage:"disables all logging to stdout and stderr"`
+
+	// FlushInterval is the maximum latency before we should flush proxied response bodies
+	FlushInterval time.Duration `json:"flush-interval" yaml:"flush-interval" usage:"the rate at which to flush response body, negative value is immedate, 0 value leaves default behaviour"`
 }
 
 // getVersion returns the proxy version
